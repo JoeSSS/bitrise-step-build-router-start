@@ -1,6 +1,7 @@
 package main
 
 import (
+        "encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -57,7 +58,26 @@ func main() {
 	environments := createEnvs(cfg.Environments)
 	for _, wf := range strings.Split(strings.TrimSpace(cfg.Workflows), "\n") {
 		wf = strings.TrimSpace(wf)
-		startedBuild, err := app.StartBuild(wf, build.OriginalBuildParams, cfg.BuildNumber, environments)
+		params := strings.Split(wf, "|")
+		if len(params) == 2 {
+			wf = params[0]
+			jsonStr := []byte(params[1])
+			var jsonObj map[string]string
+			if err := json.Unmarshal(jsonStr, &jsonObj); err != nil {
+				log.Printf("Failed to decode Env Var JSON:\n\tJSON: %s\n\tError: %s", jsonStr, err)
+				log.Printf("Example Usage:\n\tworkflow_name|{\"MY_ENV_VAR\": \"1\"}")
+			}
+			for key := range jsonObj {
+				value := jsonObj[key]
+				log.Printf("Passing Env Var: %s Value: %s", key, value)
+				env := bitrise.Environment{
+					MappedTo: key,
+					Value:    value,
+				}
+				environments = append(environments, env)
+			}
+		}
+                startedBuild, err := app.StartBuild(wf, build.OriginalBuildParams, cfg.BuildNumber, environments)
 		if err != nil {
 			failf("Failed to start build, error: %s", err)
 		}
